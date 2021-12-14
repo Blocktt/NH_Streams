@@ -1,0 +1,81 @@
+## R script used to create Glyptotendipes plot
+#
+# Ben.Block@tetratech.com, Date completed: 2021-05-13
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# R version 4.0.4 (2021-02-15)
+
+#clear global environment
+rm(list=ls())
+
+# load libraries
+library(tidyverse)
+library(readxl)
+
+# Declare directories ####
+wd <- getwd()
+input.dir <- "Input_Data"
+fn.data <- "Glyptotendipes_Percentage.xlsx"
+Data_tab <- "Data"
+output.dir <- "/Output_Data/"
+myDate <- format(Sys.Date(), "%Y%m%d")
+results.dir <- paste0("/Glypto_Boxplots",myDate)
+
+# create results folder
+dir_Results <- file.path(wd, output.dir, results.dir)
+boo_Results <- dir.exists(dir_Results)
+if(isFALSE(boo_Results)){
+  dir.create(dir_Results)
+}
+
+# Read data files ####
+df_data <- read_excel(file.path(wd,input.dir, fn.data), sheet = Data_tab
+                      , na = c("NA",""), trim_ws = TRUE, skip = 0
+                      , col_names = TRUE)
+
+### convert fields to factors
+
+df_data$DistCat3 <- factor(df_data$DistCat3, levels = c("Ref","Other","Strs"))
+df_data$SiteClass <- factor(df_data$SiteClass, levels = c("North", "Central", "South"))
+
+
+### Assign colors
+
+Colors_DistCat <- c("Ref" = "#0571b0", "Other" = "#f4a582", "Strs" = "#ca0020")
+
+
+### Graphing
+
+
+# plot_list = list()
+
+  fn = file.path(wd, output.dir, results.dir,paste0("Glyptotendipes_Abundance.png"))
+  
+  (p <- ggplot(df_data, aes(x = DistCat3, y= pi_Glypto, fill = DistCat3))+
+      geom_boxplot()+
+      labs(x = "DistCat3",
+           y = "pi_Glyptotendipes")+
+      scale_fill_manual(values = Colors_DistCat)+
+      facet_wrap(~SiteClass, ncol = 1)+
+      theme(text = element_text(size = 14),
+            axis.text = element_text(color = "black", size = 14),
+            axis.text.x = element_text(angle = 0, hjust = 0.5),
+            panel.background = element_rect(fill = "white"),
+            panel.grid.major.y = element_line(color = "black"),
+            panel.grid.major.x = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.border = element_blank(),
+            axis.line = element_line(color = "black"),
+            legend.position = "right",
+            strip.background = element_rect(color = "black",
+                                            fill = "#b8e186"),
+            strip.text.x = element_text(size = 14, 
+                                        color = "black", 
+                                        face = "bold"))
+  )## End of plot
+  
+  ggsave(fn)
+  
+
+
+
+
