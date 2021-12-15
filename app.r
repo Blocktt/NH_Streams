@@ -13,6 +13,17 @@ library(leaflet)
 # import data ####
 df_nuts<-read.csv("Data/NH_All_Nuts_IBI_Data_20211214.csv")
 
+# duplicate Ref data and make two groups
+df_ref <- df_nuts %>% 
+  filter(Type == "Ref") %>% 
+  mutate(Group = "Ref_Samps")
+
+df_nuts$Group <- "All_Samps"
+
+df_nuts_updated <- rbind(df_nuts, df_ref)
+
+df_nuts_updated$Group <- as.factor(df_nuts_updated$Group)
+
 # Create app
 
 # ui ####
@@ -94,8 +105,8 @@ server <- function(input, output, session){
   ## Stressor Response tab ####
   
   myData <- reactive({
-    df_nuts %>%
-      select(input$Nut_Choice1, Avg_NH_IBI_Score, Type) %>%
+    df_nuts_updated %>%
+      select(input$Nut_Choice1, Avg_NH_IBI_Score, Type, Group) %>%
       filter(complete.cases(.))
   }) # reactive
   
@@ -107,8 +118,8 @@ server <- function(input, output, session){
     plot_data$Type <- as.factor(plot_data$Type)
     
     # get number of observations
-    myCount <- nrow(plot_data)
-    myRefCount <- sum(plot_data$Type == "Ref")
+    myCount <- sum(plot_data$Group == "All_Samps")
+    myRefCount <- sum(plot_data$Group == "Ref_Samps")
     
     # create color scale
     pal <- c("Ref" = "#0570b0"
@@ -122,12 +133,11 @@ server <- function(input, output, session){
       geom_point(aes(color = Type))+
       geom_smooth(method='lm', formula= y~x, color = "Red", linetype = "dashed"
                   , size = 2)+
-      labs(title = paste0("NH IBI vs ", input$Nut_Choice1, "; n ="
+      labs(title = paste0("NH IBI vs ", input$Nut_Choice1, "; n = "
                           , myCount, "; n Ref = ", myRefCount)
            , y = "Site Average IBI Score"
            , x = paste0("Log10(",input$Nut_Choice1,")")
            , color = "Site Type")+
-      # scale_x_continuous(trans = "log10")+
       scale_color_manual(values = pal)+
       theme(text = element_text(size = 14),
             axis.text = element_text(color = "black", size = 14),
@@ -150,46 +160,6 @@ server <- function(input, output, session){
       select(input$Nut_Choice1, Avg_NH_IBI_Score)
     
     summary(stat1_data)
-    # df_4table <- myData()
-    # df_4table <- df_4table %>% 
-    #   rename(Parameter = input$Nut_Choice1)
-    # 
-    # # ref only stats
-    # df_ref <- df_4table %>% 
-    #   filter(Type == "Ref")
-    # df_ref$Group <- "Ref sites"
-    # 
-    # df_ref_stats <- df_ref %>% 
-    #   group_by(Group) %>% 
-    #   summarize(N = n()
-    #             , min = min(Parameter)
-    #             , `25%` = quantile(Parameter, 0.25)
-    #             , `50%` = quantile(Parameter, 0.50)
-    #             , `75%` = quantile(Parameter, 0.75)
-    #             , max = max(Parameter))
-    # 
-    # # all stats
-    # df_All <- df_4table
-    # df_All$Group <- "All sites"
-    # 
-    # df_All_stats <- df_All %>% 
-    #   group_by(Group) %>% 
-    #   summarize(N = n()
-    #             , min = min(Parameter)
-    #             , `25%` = quantile(Parameter, 0.25)
-    #             , `50%` = quantile(Parameter, 0.50)
-    #             , `75%` = quantile(Parameter, 0.75)
-    #             , max = max(Parameter))
-    # 
-    # # bind data together and return
-    # 
-    # df_stats <- rbind(df_ref_stats, df_All_stats)
-    # 
-    # df_stats <- df_stats %>% 
-    #   select(Group, everything())
-    # 
-    # return(df_stats)
-  
   }) # renderPrint
   
   output$stats2 <- renderPrint({
@@ -222,9 +192,9 @@ server <- function(input, output, session){
   ## Nutrient tab ####
   
   myNutData <- reactive({
-    df_nuts %>%
-      select(input$Nut_Choice2) %>%
-      na.omit()
+    df_nuts_updated %>%
+      select(input$Nut_Choice2, Avg_NH_IBI_Score, Type, Group) %>%
+      filter(complete.cases(.))
   }) # reactive
   
   myMapData <- reactive({
@@ -232,6 +202,10 @@ server <- function(input, output, session){
       select(StationID, Latitude, Longitude, input$Nut_Choice2) %>%
       filter(complete.cases(.))
   }) # reactive
+  
+  # create color scale
+  nutpal <- c("Ref_Samps" = "#0570b0"
+              ,"All_Samps" = "#969696")
   
   ### Map ####
   
@@ -272,15 +246,20 @@ server <- function(input, output, session){
     cdf_data <- myNutData()
     
     # get number of observations
-    myCDFCount <- nrow(cdf_data)
+    myCDFCount <- sum(cdf_data$Group == "All_Samps")
+    myCDFRefCount <- sum(cdf_data$Group == "Ref_Samps")
 
     # create plot
     
     ggplot(data = cdf_data
-           , aes(x = log10(.data[[input$Nut_Choice2]])))+
-      stat_ecdf(geom = "point", pad = FALSE, color = "orange")+
-      labs(title = paste0("n = ", myCDFCount), y = "Cumulative Percent"
+           , aes(x = log10(.data[[input$Nut_Choice2]]), color = Group))+
+      stat_ecdf(geom = "point", pad = FALSE)+
+      # stat_ecdf(geom = "point", pad = FALSE, color = "orange")+
+      labs(title = paste0(input$Nut_Choice2,"; n = "
+                          , myCDFCount,"; n Ref = ", myCDFRefCount)
+           , y = "Cumulative Percent"
            , x = paste0("Log10(",input$Nut_Choice2,")"))+
+      scale_color_manual(values = nutpal)+
       theme(text = element_text(size = 14),
             axis.text = element_text(color = "black", size = 14),
             axis.text.x = element_text(angle = 0, hjust = 0.5),
@@ -290,7 +269,7 @@ server <- function(input, output, session){
             panel.grid.minor = element_blank(),
             panel.border = element_blank(),
             axis.line = element_line(color = "black"),
-            legend.position = "right",
+            legend.position = "top",
             legend.text=element_text(size = 14))
     
   }) # renderPlot 
@@ -305,16 +284,23 @@ server <- function(input, output, session){
     
     # get number of observations
     myBoxCount <- nrow(box_data)
-    # myBoxCount <- len(box_x)
+    
+    # get number of observations
+    myBoxCount <- sum(box_data$Group == "All_Samps")
+    myBoxRefCount <- sum(box_data$Group == "Ref_Samps")
+    
     # create plot
     
     ggplot(data = box_data
            , aes(x = Parameter
-                 , y = log10(.data[[input$Nut_Choice2]])))+
-      geom_boxplot(fill = "orange")+
-      labs(title = paste0("n = ", myBoxCount)
+                 , y = log10(.data[[input$Nut_Choice2]])
+                 , fill = Group))+
+      geom_boxplot()+
+      labs(title = paste0(input$Nut_Choice2,"; n = "
+                          , myBoxCount,"; n Ref = ", myBoxRefCount)
            , y = paste0("Log10(",input$Nut_Choice2,")")
            , x = input$Nut_Choice2)+
+      scale_fill_manual(values = nutpal)+
       theme(text = element_text(size = 14),
             axis.text = element_text(color = "black", size = 14),
             axis.text.x = element_text(angle = 0, hjust = 0.5),
@@ -324,7 +310,7 @@ server <- function(input, output, session){
             panel.grid.minor = element_blank(),
             panel.border = element_blank(),
             axis.line = element_line(color = "black"),
-            legend.position = "right",
+            legend.position = "top",
             legend.text=element_text(size = 14))
     
   }) # renderPlot 
@@ -337,7 +323,6 @@ server <- function(input, output, session){
     Table_Data <- Table_Data %>% 
       rename(Parameter = input$Nut_Choice2)
     
-    Table_Data$Group <- "All sites"
     Table_Data %>% 
       group_by(Group) %>% 
       summarize(N = n()
