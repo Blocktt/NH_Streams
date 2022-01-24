@@ -11,18 +11,36 @@ library(scales)
 library(leaflet)
 
 # import data ####
-df_nuts<-read.csv("Data/NH_All_Nuts_IBI_Data_20211214.csv")
+df_nuts<-read.csv("Data/nutrients_wide01102022.csv")
+df_strs_respon <-read.csv("Data/NH_Strs_Resp_Data_20220124.csv")
 
-# duplicate Ref data and make two groups
+# duplicate nutrient data for distinct groups
 df_ref <- df_nuts %>% 
-  filter(Type == "Ref") %>% 
+  filter(DistCat_Tt == "Ref") %>% 
   mutate(Group = "Ref_Samps")
+
+df_above_thresh <- df_nuts %>% 
+  filter(BugThreshGroup == "Above_Threshold") %>% 
+  mutate(Group = "Above_Threshold")
 
 df_nuts$Group <- "All_Samps"
 
-df_nuts_updated <- rbind(df_nuts, df_ref)
+df_nuts_updated <- rbind(df_nuts, df_ref, df_above_thresh)
 
-df_nuts_updated$Group <- as.factor(df_nuts_updated$Group)
+df_nuts_updated$Group <- factor(df_nuts_updated$Group,
+                                levels = c("All_Samps","Ref_Samps", "Above_Threshold"))
+
+# duplicate stressor response data for distinct groups
+
+# df_ref_respon <- df_strs_respon %>%
+#   filter(DistCat_Tt == "Ref") %>%
+#   mutate(Group = "Ref_Samps")
+# 
+# df_strs_respon$Group <- "All_Samps"
+# 
+# df_strs_respon_updated <- rbind(df_strs_respon, df_ref_respon)
+# 
+# df_strs_respon_updated$Group <- as.factor(df_strs_respon_updated$Group)
 
 # Create app
 
@@ -35,22 +53,36 @@ ui <- fluidPage(
       , sidebarLayout(
         sidebarPanel(
           helpText("The information presented here represents",
-                   "macroinvertebrate and nutrient data paired by site.",
-                   "Note: IBI scores are site averages over time and data",
-                   "were not paired by sampling date.")
+                   "macroinvertebrate and nutrient data paired by site and year.",
+                   "Note: IBI (and component metric) scores and nutrient data are annual medians.")
           ,selectInput(inputId = "Nut_Choice1"
                       ,label = "Nutrient Parameter:"
-                      ,choices = c("TP_mgL"
-                                   ,"PO4_mgL"
-                                   ,"NOx_mgL"
-                                   ,"TKN_mgL"
-                                   ,"NO3_mgL"
-                                   ,"NO2_mgL"
-                                   ,"TN_mgL")) # selectInput
+                      ,choices = c("Med_NOx_mgL"
+                                   ,"Med_TP_mgL"
+                                   ,"Med_TKN_mgL"
+                                   ,"Med_NO3_mgL"
+                                   ,"Med_TN_mgL"
+                                   ,"Med_NO2_mgL"
+                                   ,"Med_Chla_uncorr"
+                                   ,"Med_NH3_mgL"
+                                   ,"Med_PO4_mgL")) # selectInput
+          
+          ,selectInput(inputId = "Bug_Choice1"
+                       ,label = "Macroinvertebrate Parameter:"
+                       ,choices = c("Med_IBI_Score"
+                                    ,"Med_TotTaxSc"
+                                    ,"Med_PlecTaxSc"
+                                    ,"Med_ChirPctSc"
+                                    ,"Med_NonInsPctSc"
+                                    ,"Med_ClingPctSc"
+                                    ,"Med_IntolPctSc"
+                                    ,"Med_TolerTaxSc")) # selectInput
           
         ) # sidebarPanel
         , mainPanel(
           plotOutput(outputId = "S_R_Plot")
+          , h5("Solid line = 90th quantile regression; dashed line = linear regression")
+          , br()
           , h4("Summary statistics for all samples:")
           , verbatimTextOutput("stats1")
           , h4("Summary statistics for Ref samples:")
@@ -63,17 +95,22 @@ ui <- fluidPage(
     ## Nutrient tab ####
     , tabPanel("Nutrient Distributions",   
                fluidRow(
-                 column(width=4,
+                 column(width=4, offset = 1, 
                         # Input: parameter
                         selectInput(inputId = "Nut_Choice2",
                                     label = "Nutrient Parameter",
-                                    choices = c("TP_mgL"
-                                                ,"PO4_mgL"
-                                                ,"NOx_mgL"
+                                    choices = c("NOx_mgL"
+                                                ,"TP_mgL"
                                                 ,"TKN_mgL"
                                                 ,"NO3_mgL"
+                                                ,"TN_mgL"
                                                 ,"NO2_mgL"
-                                                ,"TN_mgL")) # selectInput
+                                                ,"Chla_Uncorr"
+                                                ,"Chla_corr"
+                                                ,"NH3_mgL"
+                                                ,"PO4_mgL"
+                                                ,"TDN_mgL"
+                                                ,"NH4_ugL")) # selectInput
                         ) # column
                  )
                , fluidRow(
@@ -105,8 +142,8 @@ server <- function(input, output, session){
   ## Stressor Response tab ####
   
   myData <- reactive({
-    df_nuts_updated %>%
-      select(input$Nut_Choice1, Avg_NH_IBI_Score, Type, Group) %>%
+    df_strs_respon %>%
+      select(input$Nut_Choice1, input$Bug_Choice1, DistCat_Tt) %>%
       filter(complete.cases(.))
   }) # reactive
   
@@ -115,29 +152,31 @@ server <- function(input, output, session){
     
     # filter data
     plot_data <- myData()
-    plot_data$Type <- as.factor(plot_data$Type)
+    plot_data$DistCat_Tt <- as.factor(plot_data$DistCat_Tt)
     
     # get number of observations
-    myCount <- sum(plot_data$Group == "All_Samps")
-    myRefCount <- sum(plot_data$Group == "Ref_Samps")
+    myCount <- nrow(plot_data)
+    myRefCount <- sum(plot_data$DistCat_Tt == "Ref")
     
     # create color scale
     pal <- c("Ref" = "#0570b0"
-             ,"Non-Ref" = "#cccccc"
-             ,"Imp" = "#cccccc"
-             ,"Not_Available" = "#cccccc")
+             ,"Non-Ref" = "#969696"
+             ,"Not_Eval" = "#cccccc")
+    
     # create plot
     ggplot(data = plot_data
            , aes(x = log10(.data[[input$Nut_Choice1]])
-                 , y = Avg_NH_IBI_Score))+
-      geom_point(aes(color = Type))+
+                 , y = (.data[[input$Bug_Choice1]])))+
       geom_smooth(method='lm', formula= y~x, color = "Red", linetype = "dashed"
                   , size = 2)+
-      labs(title = paste0("NH IBI vs ", input$Nut_Choice1, "; n = "
+      geom_quantile(quantiles = 0.90, formula= y~x, color = "light blue"
+                    , linetype = "solid", size = 1)+
+      geom_point(aes(color = DistCat_Tt))+
+      labs(title = paste0(input$Nut_Choice1," vs ", input$Bug_Choice1, "; n = "
                           , myCount, "; n Ref = ", myRefCount)
-           , y = "Site Average IBI Score"
+           , y = paste0(input$Bug_Choice1)
            , x = paste0("Log10(",input$Nut_Choice1,")")
-           , color = "Site Type")+
+           , color = "DistCat_Tt")+
       scale_color_manual(values = pal)+
       theme(text = element_text(size = 14),
             axis.text = element_text(color = "black", size = 14),
@@ -156,8 +195,8 @@ server <- function(input, output, session){
   ### Stats ####
   output$stats1 <- renderPrint({
     stat1_data <- myData()
-    stat1_data <- stat1_data %>% 
-      select(input$Nut_Choice1, Avg_NH_IBI_Score)
+    stat1_data <- stat1_data %>%
+      select(input$Nut_Choice1, input$Bug_Choice1)
     
     summary(stat1_data)
   }) # renderPrint
@@ -165,8 +204,8 @@ server <- function(input, output, session){
   output$stats2 <- renderPrint({
     stat2_data <- myData()
     stat2_data <- stat2_data %>%
-      filter(Type == "Ref") %>% 
-      select(input$Nut_Choice1, Avg_NH_IBI_Score)
+      filter(DistCat_Tt == "Ref") %>% 
+      select(input$Nut_Choice1, input$Bug_Choice1)
     
     summary(stat2_data)
    
@@ -179,9 +218,10 @@ server <- function(input, output, session){
   Linear_Model <- reactive({
     lm_data <- myData()
     lm_data <- lm_data %>% 
-      rename(Parameter = input$Nut_Choice1)
+      rename(Nut_Parameter = input$Nut_Choice1
+             , Bug_Parameter = input$Bug_Choice1)
     
-    lm(Avg_NH_IBI_Score ~ Parameter, data = lm_data)
+    lm(Bug_Parameter ~ Nut_Parameter, data = lm_data)
   }) # reactive
   
   output$lm <- renderPrint({
@@ -193,7 +233,7 @@ server <- function(input, output, session){
   
   myNutData <- reactive({
     df_nuts_updated %>%
-      select(input$Nut_Choice2, Avg_NH_IBI_Score, Type, Group) %>%
+      select(input$Nut_Choice2, DistCat_Tt, Group) %>%
       filter(complete.cases(.))
   }) # reactive
   
@@ -205,7 +245,8 @@ server <- function(input, output, session){
   
   # create color scale
   nutpal <- c("Ref_Samps" = "#0570b0"
-              ,"All_Samps" = "#969696")
+              ,"All_Samps" = "#969696"
+              ,"Above_Threshold" = "#04b571")
   
   ### Map ####
   
@@ -228,11 +269,6 @@ server <- function(input, output, session){
                        , color = "black", fillColor = "orange"
                        , fillOpacity = 0.5, radius = 1, stroke = TRUE
       ) %>%
-      # addLegend(pal = qpal
-      #           ,values = scale_range
-      #           ,position = "bottomright"
-      #           ,title = "Index Scores"
-      #           ,opacity = 1) %>%
       addLayersControl(overlayGroups = c("NH WQ Sites"),
                        baseGroups = c("Esri WSM", "Positron", "Toner Lite"),
                        options = layersControlOptions(collapsed = TRUE))%>%
@@ -248,6 +284,7 @@ server <- function(input, output, session){
     # get number of observations
     myCDFCount <- sum(cdf_data$Group == "All_Samps")
     myCDFRefCount <- sum(cdf_data$Group == "Ref_Samps")
+    myCDFThreshCount <- sum(cdf_data$Group == "Above_Threshold")
 
     # create plot
     
@@ -256,7 +293,8 @@ server <- function(input, output, session){
       stat_ecdf(geom = "point", pad = FALSE)+
       # stat_ecdf(geom = "point", pad = FALSE, color = "orange")+
       labs(title = paste0(input$Nut_Choice2,"; n = "
-                          , myCDFCount,"; n Ref = ", myCDFRefCount)
+                          , myCDFCount,"; n Ref = ", myCDFRefCount
+                          , "; \nn Above Threshold = ", myCDFThreshCount)
            , y = "Cumulative Percent"
            , x = paste0("Log10(",input$Nut_Choice2,")"))+
       scale_color_manual(values = nutpal)+
@@ -288,6 +326,7 @@ server <- function(input, output, session){
     # get number of observations
     myBoxCount <- sum(box_data$Group == "All_Samps")
     myBoxRefCount <- sum(box_data$Group == "Ref_Samps")
+    myBoxThreshCount <- sum(box_data$Group == "Above_Threshold")
     
     # create plot
     
@@ -297,7 +336,8 @@ server <- function(input, output, session){
                  , fill = Group))+
       geom_boxplot()+
       labs(title = paste0(input$Nut_Choice2,"; n = "
-                          , myBoxCount,"; n Ref = ", myBoxRefCount)
+                          , myBoxCount,"; n Ref = ", myBoxRefCount
+                          , "; \nn Above Threshold = ", myBoxThreshCount)
            , y = paste0("Log10(",input$Nut_Choice2,")")
            , x = input$Nut_Choice2)+
       scale_fill_manual(values = nutpal)+
