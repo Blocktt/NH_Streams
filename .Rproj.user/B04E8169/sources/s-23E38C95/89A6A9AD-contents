@@ -176,7 +176,7 @@ server <- function(input, output, session){
                           , myCount, "; n Ref = ", myRefCount)
            , y = paste0(input$Bug_Choice1)
            , x = paste0("Log10(",input$Nut_Choice1,")")
-           , color = "DistCat_Tt")+
+           , color = "Ref Status")+
       scale_color_manual(values = pal)+
       theme(text = element_text(size = 14),
             axis.text = element_text(color = "black", size = 14),
@@ -367,9 +367,11 @@ server <- function(input, output, session){
       group_by(Group) %>% 
       summarize(N = n()
                 , min = min(Parameter)
+                , `10%` = quantile(Parameter, 0.10)
                 , `25%` = quantile(Parameter, 0.25)
                 , `50%` = quantile(Parameter, 0.50)
                 , `75%` = quantile(Parameter, 0.75)
+                , `90%` = quantile(Parameter, 0.90)
                 , max = max(Parameter))
     
   }) # renderTable
