@@ -9,10 +9,11 @@ library(shiny)
 library(tidyr)
 library(scales)
 library(leaflet)
+library(quantreg)
 
 # import data ####
 df_nuts<-read.csv("Data/nutrients_wide01102022.csv")
-df_strs_respon <-read.csv("Data/NH_Strs_Resp_Data_20220124.csv")
+df_strs_respon <-read.csv("Data/NH_Strs_Resp_Data_20220218.csv")
 
 # duplicate nutrient data for distinct groups
 df_ref <- df_nuts %>% 
@@ -163,14 +164,14 @@ server <- function(input, output, session){
              ,"Non-Ref" = "#969696"
              ,"Not_Eval" = "#cccccc")
     
-    # create plot
+  # create plot
     ggplot(data = plot_data
            , aes(x = log10(.data[[input$Nut_Choice1]])
                  , y = (.data[[input$Bug_Choice1]])))+
       geom_smooth(method='lm', formula= y~x, color = "Red", linetype = "dashed"
-                  , size = 2)+
+                  , size = 2, na.rm = TRUE)+
       geom_quantile(quantiles = 0.90, formula= y~x, color = "light blue"
-                    , linetype = "solid", size = 1)+
+                    , linetype = "solid", size = 1, na.rm = TRUE)+
       geom_point(aes(color = DistCat_Tt))+
       labs(title = paste0(input$Nut_Choice1," vs ", input$Bug_Choice1, "; n = "
                           , myCount, "; n Ref = ", myRefCount)
@@ -189,8 +190,8 @@ server <- function(input, output, session){
             axis.line = element_line(color = "black"),
             legend.position = "right",
             legend.text=element_text(size = 14))
-    
-  }) # renderPlot 
+
+  }) # renderPlot
 
   ### Stats ####
   output$stats1 <- renderPrint({

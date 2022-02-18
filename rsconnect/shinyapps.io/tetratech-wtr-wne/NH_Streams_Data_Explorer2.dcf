@@ -1,0 +1,13 @@
+name: NH_Streams_Data_Explorer2
+title: NH_Streams_Data_Explorer2
+username:
+account: tetratech-wtr-wne
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5598813
+bundleId: 5553001
+url: https://tetratech-wtr-wne.shinyapps.io/NH_Streams_Data_Explorer2/
+when: 1644253494.70207
+lastSyncTime: 1644253494.70207
+asMultiple: FALSE
+asStatic: FALSE

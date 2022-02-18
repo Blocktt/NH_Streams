@@ -1,0 +1,13 @@
+name: NH_Streams
+title: NH_Streams
+username:
+account: tetratech-wtr-wne
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 5687347
+bundleId: 5595482
+url: https://tetratech-wtr-wne.shinyapps.io/NH_Streams/
+when: 1645216240.90725
+lastSyncTime: 1645216240.90725
+asMultiple: FALSE
+asStatic: FALSE
